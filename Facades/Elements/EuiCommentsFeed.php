@@ -1,8 +1,7 @@
 <?php
 namespace exface\JEasyUIFacade\Facades\Elements;
 
-use exface\Core\CommonLogic\Constants\Icons;
-use exface\Core\CommonLogic\UxonObject;
+use exface\Core\Facades\AbstractAjaxFacade\Elements\JqueryCommentsTrait;
 use exface\Core\Facades\AbstractAjaxFacade\Elements\JsUploaderTrait;
 use exface\Core\Interfaces\Actions\ActionInterface;
 use exface\Core\Widgets\DataButton;
@@ -24,6 +23,7 @@ use exface\JEasyUIFacade\Facades\Elements\Traits\EuiDataElementTrait;
 class EuiCommentsFeed extends EuiData
 {    
     use JsUploaderTrait;
+    use JqueryCommentsTrait;
     use EuiDataElementTrait;
     
     public function buildHtmlHeadTags()
@@ -66,14 +66,31 @@ HTML;
         return "<div id=\"{$this->getId()}\"></div>";
     }
 
+    /**
+     * Builds facade JavaScript around the shared comments configuration to keep adapter-specific output minimal.
+     *
+     * @return string
+     */
     function buildJs()
     {
+        $this->registerCommentsFeedErrorCallbacks();
+        /** @var EuiButton $createButton */
+        $createButton = $this->getFacade()->getElement($this->getWidget()->getButtonCreate());
+        /** @var EuiButton $editButton */
+        $editButton = $this->getFacade()->getElement($this->getWidget()->getButtonEdit());
+        /** @var EuiButton $deleteButton */
+        $deleteButton = $this->getFacade()->getElement($this->getWidget()->getButtonDelete());
+
         return <<<JS
 
     {$this->buildJsForPanel()}
 
     function {$this->buildJsFunctionPrefix()}_init(){
-        {$this->buildJsCommentsInit()}
+        {$this->buildJsJqueryCommentsInit(
+            $createButton->buildJsClickFunctionName(),
+            $editButton->buildJsClickFunctionName(),
+            $deleteButton->buildJsClickFunctionName()
+        )}
     }
     
     {$this->buildJsDataLoadFunction()}
@@ -85,131 +102,33 @@ HTML;
 JS;
     }
 
-    protected function buildJsCommentsInit() : string
+    /**
+     * Connects facade-specific server failures to jQuery Comments because the shared trait handles successful actions by event.
+     *
+     * @return void
+     */
+    protected function registerCommentsFeedErrorCallbacks() : void
     {
-        $btnCreateEl = $this->getFacade()->getElement($this->getWidget()->getButtonCreate());
-        $btnCreateEl->addOnErrorScript("$('#{$this->getId()}')[0].errorCallback()");
-
-        
-        $btnEditEl = $this->getFacade()->getElement($this->getWidget()->getButtonEdit());
-        $btnEditEl->addOnErrorScript("$('#{$this->getId()}')[0].errorCallback()");
-
-        $btnDeleteEl = $this->getFacade()->getElement($this->getWidget()->getButtonDelete());
-        $btnDeleteEl->addOnErrorScript("$('#{$this->getId()}')[0].errorCallback()");
-        
-        // Include system columns for update/delete
-        $systemColsJs = '';
-        foreach ($this->getWidget()->getColumns() as $col) {
-            if ($col->isBoundToAttribute() && $col->getAttribute()->getRelationPath()->isEmpty() && $col->getAttribute()->isSystem()) {
-                $systemColsJs .= "{$col->getDataColumnName()}: data.{$col->getDataColumnName()},";
-            }
-        } 
-        $dateFormatJs = $this->escapeString($this->getWorkbench()->getCoreApp()->getTranslator()->translate('LOCALIZATION.DATE.DATETIME_FORMAT'), true, false);
-        return <<<JS
-
-            $(function() {
-				var saveComment = function(data) {
-
-					// Convert pings to human readable format -->
-					// $(Object.keys(data.pings)).each(function(index, userId) {
-					//     var fullname = data.pings[userId];
-					//     var pingText = '@' + fullname;
-					//     data.content = data.content.replace(new RegExp('@' + userId, 'g'), pingText);
-					// });
-
-					return data;
-				}
-				$('#{$this->getId()}').comments({
-					profilePictureURL: 'https://viima-app.s3.amazonaws.com/media/public/defaults/user-icon.png',
-					currentUserId: '{$this->getWorkbench()->getSecurity()->getAuthenticatedUser()->getUid()}',
-					roundProfilePictures: true,
-					textareaRows: 1,
-					enableAttachments: false,
-					enableHashtags: false,
-					enablePinging: false,
-                    enableUpvoting: false,
-                    enableReplying: false,
-                    enableEditing: true,
-					scrollContainer: $(window),
-                    fieldMappings: {
-                                    id: '{$this->getWidget()->getCommentIdColumn()->getDataColumnName()}',
-									created: '{$this->getWidget()->getCommentCreatedDateColumn()->getDataColumnName()}',
-									modified: '_modified',
-									content: '{$this->getWidget()->getCommentContentColumn()->getDataColumnName()}',
-									creator: '{$this->getWidget()->getCommentAuthorIdColumn()->getDataColumnName()}',
-									fullname: '{$this->getWidget()->getCommentAuthorColumn()->getDataColumnName()}',
-								    createdByCurrentUser: '{$this->getWidget()->getIsCurrentUserAuthor()->getDataColumnName()}',
-                                    dbModified: '{$this->getWidget()->getCommentEditedDateColumn()->getDataColumnName()}',
-									//parent: 'parent',
-									//attachments: 'attachments',
-									//pings: 'pings',
-									//profilePictureURL: 'profile_picture_url',
-									//isNew: 'is_new',
-									//createdByAdmin: 'created_by_admin',
-									//upvoteCount: 'upvote_count',
-									//userHasUpvoted: 'user_has_upvoted'
-								},
-                    timeFormatter: function(time) {
-                        return exfTools.date.format(time, {$dateFormatJs})
-                    },
-					searchUsers: function(term, success, error) {
-					    setTimeout(function() {
-					        success(usersArray.filter(function(user) {
-					            var containsSearchTerm = user.fullname.toLowerCase().indexOf(term.toLowerCase()) != -1;
-					            var isNotSelf = user.id != 1;
-					            return containsSearchTerm && isNotSelf;
-					        }),
-                            error());
-					    }, 500);
-					},
-					getComments: function(success, error) {
-                        var oParams={};
-						{$this->buildJsDataLoadFunctionBody('oParams')};
-					},
-					postComment: function(data, success, error) {
-                        var oDataRow = {
-                            {$this->getWidget()->getCommentContentColumn()->getDataColumnName()} : data.{$this->getWidget()->getCommentContentColumn()->getDataColumnName()},
-                        };
-                        $('#{$this->getId()}').data('_exfInput', oDataRow);
-                        $('#{$this->getId()}')[0].errorCallback = error;
-                        {$btnCreateEl->buildJsClickFunctionName()}();
-					},
-					putComment: function(data, success, error) {
-						var oDataRow = {
-                            {$systemColsJs}
-                            {$this->getWidget()->getCommentContentColumn()->getDataColumnName()} : data.{$this->getWidget()->getCommentContentColumn()->getDataColumnName()},
-                        };
-                        $('#{$this->getId()}').data('_exfInput', oDataRow);
-                        $('#{$this->getId()}')[0].errorCallback = error;
-                        {$btnEditEl->buildJsClickFunctionName()}();
-					},
-					deleteComment: function(data, success, error) {
-                        $('#{$this->getId()}').data('_exfInput', data);
-                        $('#{$this->getId()}')[0].errorCallback = error;
-                        {$btnDeleteEl->buildJsClickFunctionName()}();
-					},
-					upvoteComment: function(data, success, error) {
-						setTimeout(function() {
-							success(data);
-						}, 500);
-					},
-					validateAttachments: function(attachments, callback) {
-						setTimeout(function() {
-							callback(attachments);
-						}, 500);
-					},
-				});
-			});
-JS;
+        $elementSelector = $this->escapeString($this->getId(), true, false);
+        foreach ([
+            $this->getWidget()->getButtonCreate(),
+            $this->getWidget()->getButtonEdit(),
+            $this->getWidget()->getButtonDelete()
+        ] as $buttonWidget) {
+            /** @var EuiButton $buttonElement */
+            $buttonElement = $this->getFacade()->getElement($buttonWidget);
+            $buttonElement->addOnErrorScript("$('#{$elementSelector}')[0].errorCallback()");
+        }
     }
-    
+
     protected function buildJsDataLoaderOnLoaded(string $dataJs) : string
     {
         return '';
     }
 
     /**
-     * {@inheritDoc}
+     * Loads comment rows through the facade data action so the library receives its configured field mappings.
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiData::buildJsDataSource()
      */
     public function buildJsDataLoadFunctionBody(string $oParamsJs = 'oParams', string $successJs = 'success', string $errorJs = 'error') : string
@@ -240,22 +159,6 @@ JS;
         }
 
         param = $.extend(param, ({$oParamsJs} || {}));
-        // param.data.filters = {
-        //     "operator": "AND",
-        //     "ignore_empty_values": true,
-        //     "conditions": [
-        //         {
-        //             "expression": "OffenePunkte__Nummer",
-        //             "value": "OP-1530",
-        //             "comparator": "==",
-        //             "object_alias": "my.App.OffenePunkteKommentare",
-        //             "apply_to_aggregates": "true"
-        //         }
-        //     ],
-        //     "nested_groups": []
-        // };
-        // console.log('AJAX request', param);
-        
         $.ajax({
         url: "{$this->getAjaxUrl()}",
         data: param,
@@ -394,7 +297,8 @@ JS;
     }
     
     /**
-     * 
+     * Supplies comment action data from the currently edited model without logging its contents to the browser console.
+     *
      * @see AbstractJqueryElement::buildJsDataGetter()
      */
     public function buildJsDataGetter(ActionInterface $action = null)
@@ -432,8 +336,7 @@ JS;
                                 oInputData
                             ]
                         };
-                        {$this->buildJsLoadFilterHandleWidgetLinks('oData')};  
-                        console.log('data getter', oInputData);
+                        {$this->buildJsLoadFilterHandleWidgetLinks('oData')};
                         return oData;
                     })($('#{$this->getId()}'))
 JS;
