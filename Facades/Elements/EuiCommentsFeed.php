@@ -33,10 +33,14 @@ class EuiCommentsFeed extends EuiData
         return $headers;
     }
 
+    /**
+     * Keeps the feed's assets local so disabled mentions never trigger a blocked third-party script request.
+     *
+     * @return array
+     */
     protected function buildHtmlHeadTagsForComments() : array
     {
         return [
-            '<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery.textcomplete/1.8.0/jquery.textcomplete.js"></script>',
             '<script type="text/javascript" src="vendor/bower-asset/jquery-comments/js/jquery-comments.js"></script>',
             '<link rel="stylesheet" type="text/css" href="vendor/bower-asset/jquery-comments/css/jquery-comments.css">'
         ];
@@ -109,7 +113,7 @@ JS;
      */
     protected function registerCommentsFeedErrorCallbacks() : void
     {
-        $elementSelector = $this->escapeString($this->getId(), true, false);
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
         foreach ([
             $this->getWidget()->getButtonCreate(),
             $this->getWidget()->getButtonEdit(),
@@ -117,7 +121,7 @@ JS;
         ] as $buttonWidget) {
             /** @var EuiButton $buttonElement */
             $buttonElement = $this->getFacade()->getElement($buttonWidget);
-            $buttonElement->addOnErrorScript("$('#{$elementSelector}')[0].errorCallback()");
+            $buttonElement->addOnErrorScript("{$elementSelector}[0].errorCallback()");
         }
     }
 
@@ -134,19 +138,26 @@ JS;
     public function buildJsDataLoadFunctionBody(string $oParamsJs = 'oParams', string $successJs = 'success', string $errorJs = 'error') : string
     {
         $widget = $this->getWidget();
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
+        $actionAlias = $this->escapeString($widget->getLazyLoadingActionAlias(), true, false);
+        $pageAlias = $this->escapeString($widget->getPage()->getAliasWithNamespace(), true, false);
+        $widgetId = $this->escapeString($widget->getId(), true, false);
+        $objectId = $this->escapeString($widget->getMetaObject()->getId(), true, false);
+        $ajaxUrl = $this->escapeString($this->getAjaxUrl(), true, false);
+        $commentEditedColumn = $this->escapeString($widget->getCommentEditedDateColumn()->getDataColumnName(), true, false);
         
         return <<<JS
 
     // Don't load if already loading    
-        if ($('#{$this->getId()}').data('_loading')) return;	
+        if ({$elementSelector}.data('_loading')) return;
         
-        $('#{$this->getId()}').data('_loading', 1);
+        {$elementSelector}.data('_loading', 1);
 
         var param = {
-            action: '{$widget->getLazyLoadingActionAlias()}',
-            resource: "{$widget->getPage()->getAliasWithNamespace()}",
-            element: "{$widget->getId()}",
-            object: "{$widget->getMetaObject()->getId()}"
+            action: {$actionAlias},
+            resource: {$pageAlias},
+            element: {$widgetId},
+            object: {$objectId}
         };
 
         var checkOnBeforeLoad = function(param){
@@ -160,7 +171,7 @@ JS;
 
         param = $.extend(param, ({$oParamsJs} || {}));
         $.ajax({
-        url: "{$this->getAjaxUrl()}",
+        url: {$ajaxUrl},
         data: param,
         method: 'POST',
         success: function(json){
@@ -171,19 +182,19 @@ JS;
                         
                     json.rows.forEach(function(oRow, i){
                         var oRowMod = oRow;
-                        oRowMod._modified = oRow['{$this->getWidget()->getCommentEditedDateColumn()->getDataColumnName()}'];
+                        oRowMod._modified = oRow[{$commentEditedColumn}];
                         aRowsMod.push(oRowMod);
                     });
                     {$successJs} (aRowsMod);
                     
-                    $('#{$this->getId()}').data('_loading', 0);
+                    {$elementSelector}.data('_loading', 0);
 
                 } catch (err) {
                     console.error(err);
                 }
             },
             error: function(jqXHR, textStatus, errorThrown){
-                $('#{$this->getId()}').data('_loading', 0);
+                {$elementSelector}.data('_loading', 0);
                 {$this->buildJsShowErrorAjax('jqXHR')}
                 //TODO call error callback
                 {$errorJs} (jqXHR, textStatus, errorThrown);
@@ -205,12 +216,13 @@ JS;
      */
     protected function buildJsUploadSend(string $oParamsJs, string $onUploadCompleteJs) : string
     {
+        $ajaxUrl = $this->escapeString($this->getAjaxUrl(), true, false);
         return <<<JS
 
             {$this->buildJsLoadFilterHandleWidgetLinks('oParams.data')}                
 
             $.ajax({
-                url: "{$this->getAjaxUrl()}",
+                url: {$ajaxUrl},
                 data: $oParamsJs,
                 method: 'POST',
                 success: function(json){
@@ -264,7 +276,8 @@ JS;
      */
     public function buildJsBusyIconShow()
     {
-        return $this->buildJsBusyIconHide() . "$('#{$this->getId()}').prepend('<div class=\"imagecarousel-loading\"><div class=\"datagrid-mask\" style=\"display:block\"></div><div class=\"datagrid-mask-msg\" style=\"display: block; left: 50%; height: 16px; margin-left: -107.555px; line-height: 16px;\"></div></div>');";
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
+        return $this->buildJsBusyIconHide() . "{$elementSelector}.prepend('<div class=\"imagecarousel-loading\"><div class=\"datagrid-mask\" style=\"display:block\"></div><div class=\"datagrid-mask-msg\" style=\"display: block; left: 50%; height: 16px; margin-left: -107.555px; line-height: 16px;\"></div></div>');";
     }
     
     /**
@@ -274,7 +287,8 @@ JS;
      */
     public function buildJsBusyIconHide()
     {
-        return "$('#{$this->getId()} .imagecarousel-loading').remove();";
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId() . ' .imagecarousel-loading', true, false) . ')';
+        return "{$elementSelector}.remove();";
     }
     
     /**
@@ -305,6 +319,8 @@ JS;
     {
         $widget = $this->getWidget();
         $dataObj = $this->getMetaObjectForDataGetter($action);
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
+        $objectId = $this->escapeString($widget->getMetaObject()->getId(), true, false);
         // Determine the columns we need in the actions data
         $colNamesList = implode(',', $widget->getActionDataColumnNames());
         
@@ -319,7 +335,7 @@ JS;
             // TODO save the data loaded from the server somewhere and return it here
             case $customMode === DataButton::INPUT_ROWS_ALL:
             case $action === null:
-                return "($('#{$this->getId()}').data('_exfData') || {oId: '{$widget->getMetaObject()->getId()}', rows: []})";
+                return "({$elementSelector}.data('_exfData') || {oId: {$objectId}, rows: []})";
                 
             // If the button requires none of the rows explicitly
             case $customMode === DataButton::INPUT_ROWS_NONE:
@@ -331,14 +347,14 @@ JS;
                     (function(jqComments){
                         var oInputData = jqComments.data('_exfInput');
                         var oData = {
-                            oId: "{$widget->getMetaObject()->getId()}",
+                            oId: {$objectId},
                             rows: [
                                 oInputData
                             ]
                         };
                         {$this->buildJsLoadFilterHandleWidgetLinks('oData')};
                         return oData;
-                    })($('#{$this->getId()}'))
+                    })({$elementSelector})
 JS;
         }
     }
@@ -350,6 +366,7 @@ JS;
      */
     public function buildJsRefresh() : string
     {
-        return "$('#{$this->getId()}').data('comments').fetchDataAndRender()";
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
+        return "{$elementSelector}.data('comments').fetchDataAndRender()";
     }
 }
