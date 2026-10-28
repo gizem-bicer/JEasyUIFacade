@@ -684,7 +684,7 @@ JS;
     {$this->buildJsConfiguratorBadgeFunctions()}
 {$this->buildJsSorterBuilderInit()}
 {$this->buildJsConditionBuilderInit()}
-    {$this->buildJsFunctionPrefix()}UpdateConfiguratorBadges();
+    {$this->buildJsConfiguratorBadgesUpdate()}
     {$setupsJs}
     {$responsiveHeaderJs}
     {$quickSelectJs}
@@ -760,7 +760,7 @@ JS;
     }
 
     /**
-     * Builds a reusable registry that displays tab counters and their sum on the configurator button.
+     * Builds the badge registry so only rendered configurator tabs are queried for counts.
      *
      * @return string
      */
@@ -865,7 +865,9 @@ JS;
     }
     
     /**
-     * 
+     * Initializes sorter handling independently from badge UI so sorting still applies to data loads
+     * when no configurator dialog is rendered.
+     *
      * @return string
      */
     protected function buildJsSorterBuilderInit() : string
@@ -889,6 +891,18 @@ JS;
             'moveDown' => $this->translate('WIDGET.DATACONFIGURATOR.SORTER_MOVE_DOWN'),
             'empty' => $this->translate('WIDGET.DATACONFIGURATOR.SORTERS_EMPTY')
         ];
+        $registerBadgeJs = '';
+        if ($this->hasConfiguratorDialog()) {
+            $registerBadgeJs = <<<JS
+{$this->buildJsFunctionPrefix()}RegisterConfiguratorBadge('{$this->getIdOfSortersTab()}', function(){
+    var jqSorterBuilder = $('#{$this->getIdOfSorterBuilder()}');
+    if (jqSorterBuilder.length === 0 || jqSorterBuilder.data('exfSorterBuilder') === undefined) {
+        return 0;
+    }
+    return jqSorterBuilder.exfSorterBuilder('getSorters').length;
+});
+JS;
+        }
         
         return <<<JS
 
@@ -899,15 +913,14 @@ $('#{$this->getIdOfSorterBuilder()}').exfSorterBuilder({
     i18n: {$this->encodeJson($i18n)},
     onChange: {$this->buildJsFunctionPrefix()}UpdateConfiguratorBadges
 });
-{$this->buildJsFunctionPrefix()}RegisterConfiguratorBadge('{$this->getIdOfSortersTab()}', function(){
-    return $('#{$this->getIdOfSorterBuilder()}').exfSorterBuilder('getSorters').length;
-});
+{$registerBadgeJs}
 
 JS;
     }
     
     /**
-     * 
+     * Initializes advanced-search filtering independently from badge UI so data-load filters remain available.
+     *
      * @return string
      */
     protected function buildJsConditionBuilderInit() : string
@@ -937,6 +950,30 @@ JS;
             'empty' => $this->translate('WIDGET.DATACONFIGURATOR.CONDITIONS_EMPTY'),
             'valuePromptBetween' => $this->translate('WIDGET.DATACONFIGURATOR.CONDITION_VALUE_BETWEEN')
         ];
+        $registerBadgeJs = '';
+        if ($this->hasConfiguratorDialog()) {
+            $registerBadgeJs = <<<JS
+{$this->buildJsFunctionPrefix()}RegisterConfiguratorBadge('{$this->getIdOfAdvancedSearchTab()}', function(){
+    var jqConditionBuilder = $('#{$this->getIdOfConditionBuilder()}');
+    if (jqConditionBuilder.length === 0 || jqConditionBuilder.data('exfConditionBuilder') === undefined) {
+        return 0;
+    }
+    var fnCount = function(oGroup){
+        var iCount = 0;
+        (oGroup.conditions || []).forEach(function(oCondition){
+            if (oCondition.value !== null && oCondition.value !== '') {
+                iCount++;
+            }
+        });
+        (oGroup.nested_groups || []).forEach(function(oNested){
+            iCount += fnCount(oNested);
+        });
+        return iCount;
+    };
+    return fnCount(jqConditionBuilder.exfConditionBuilder('getModel'));
+});
+JS;
+        }
         
         return <<<JS
 
@@ -952,21 +989,7 @@ $('#{$this->getIdOfConditionBuilder()}').exfConditionBuilder({
     i18n: {$this->encodeJson($i18n)},
     onChange: {$this->buildJsFunctionPrefix()}UpdateConfiguratorBadges
 });
-{$this->buildJsFunctionPrefix()}RegisterConfiguratorBadge('{$this->getIdOfAdvancedSearchTab()}', function(){
-    var fnCount = function(oGroup){
-        var iCount = 0;
-        (oGroup.conditions || []).forEach(function(oCondition){
-            if (oCondition.value !== null && oCondition.value !== '') {
-                iCount++;
-            }
-        });
-        (oGroup.nested_groups || []).forEach(function(oNested){
-            iCount += fnCount(oNested);
-        });
-        return iCount;
-    };
-    return fnCount($('#{$this->getIdOfConditionBuilder()}').exfConditionBuilder('getModel'));
-});
+{$registerBadgeJs}
 
 JS;
     }
