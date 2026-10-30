@@ -51,3 +51,5 @@ local.properties
 
 # PHPStorm
 .idea/
+
+Tests/Playwrite/.test-results/

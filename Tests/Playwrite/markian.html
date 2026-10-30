@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>jEasyUI Markdown integration fixture</title>
+    <link rel="stylesheet" href="/axenox/markian/dist/markian.css">
+    <link rel="stylesheet" href="/axenox/markian/dist/markian-viewer.css">
+    <style>
+        body { margin: 16px; font-family: sans-serif; }
+        #editor { height: 400px; max-width: 900px; }
+        #viewer { max-width: 900px; margin-top: 24px; }
+    </style>
+    <script src="/axenox/markian/dist/markian.min.js"></script>
+    <script src="/axenox/markian/dist/markian-viewer.min.js"></script>
+    <script src="/exface/core/Facades/AbstractAjaxFacade/js/markian/MarkianAdapter.js"></script>
+</head>
+<body>
+    <div id="editor"></div>
+    <div id="viewer"></div>
+    <script>
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {markdown: '# Notes\n\nEdit this document.', initialMode: 'visual'}, false, null, false);
+        window.viewer = MarkianAdapter.mount(document.getElementById('viewer'), {markdown: '# Display\n\n- [x] A nonmutating task'}, true);
+    </script>
+</body>
+</html>

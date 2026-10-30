@@ -43,6 +43,17 @@ ul.nav_menu a:hover {background-color: #6200ee; color: white}
 .l-btn-plain.exf-svg-icon svg {fill: #6200ee;}
 
 /* Inputs */
+.exf-input-markdown .markian {
+	--exf-markian-border: #dfdfdf;
+	--exf-markian-field-border: #c2c2c2;
+	--exf-markian-field-border-width: 0 0 1px;
+	--exf-markian-radius: 0px;
+	--exf-markian-accent: #6200ee;
+	--exf-markian-hover: #ddd;
+	--exf-markian-button-background: #6200ee;
+	--exf-markian-button-color: #fff;
+	--exf-markian-menu-height: 32px;
+}
 .exf-input textarea {border-color: #dfdfdf; border-bottom-color: #c2c2c2; height: 100%; width: 100%;}
 .exf-input textarea:focus-visible {outline: none; border-bottom-color: #6200ee}
 fieldset.exface_inputgroup {border-color: #95B8E7;}
