@@ -1,19 +1,19 @@
 <?php
 namespace exface\JEasyUIFacade\Facades\Elements;
 
-use exface\Core\Facades\AbstractAjaxFacade\Elements\ToastUIEditorTrait;
+use exface\Core\Facades\AbstractAjaxFacade\Elements\MarkianTrait;
 use exface\Core\Widgets\InputMarkdown;
 
 /**
  * JEasyUI implementation of the corresponding widget.
- * 
+ *
  * @see InputMarkdown
- * 
+ *
  * @method \exface\Core\Widgets\InputMarkdown getWidget()
  */
 class EuiInputMarkdown extends EuiInput
 {
-    use ToastUIEditorTrait;
+    use MarkianTrait;
     
     /**
      *
@@ -26,7 +26,7 @@ class EuiInputMarkdown extends EuiInput
     }
     
     /**
-     * 
+     *
      * {@inheritDoc}
      * @see \exface\Core\Facades\AbstractAjaxFacade\Elements\AbstractJqueryElement::buildCssHeightDefaultValue()
      */
@@ -36,73 +36,69 @@ class EuiInputMarkdown extends EuiInput
     }
 
     /**
-     * 
      * {@inheritDoc}
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiInput::buildHtml()
      */
     public function buildHtml()
     {
-        return $this->buildHtmlLabelWrapper($this->buildHtmlMarkdownEditor());
+        return $this->buildHtmlLabelWrapper('<div id="' . $this->getId() . '" class="exf-input-markdown" style="height:100%;min-height:260px"></div>');
     }
 
     /**
-     *
      * {@inheritDoc}
+     *
      * @see \exface\Core\Facades\AbstractAjaxFacade\Elements\AbstractJqueryElement::buildHtmlHeadTags()
      */
     public function buildHtmlHeadTags()
     {
-        $f = $this->getFacade();
-        $includes = parent::buildHtmlHeadTags();
-        $includes[] = '<link rel="stylesheet" href="' . $f->buildUrlToSource('LIBS.TOASTUI.EDITOR.CSS') . '" />';
-        $includes[] = '<script type="text/javascript" src="' . $f->buildUrlToSource("LIBS.TOASTUI.EDITOR.JS") . '"></script>';
-        if ($this->getWidget()->hasRenderMermaidDiagrams()) {
-            $includes[] = '<script type="text/javascript" src="' . $f->buildUrlToSource("LIBS.MERMAID.JS") . '"></script>';
-        }
-        //$includes[] = '<script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>';
-        return $includes;
+        return $this->buildHtmlMarkianHeadTags();
     }
     
     /**
-     *
      * {@inheritDoc}
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiInput::buildJs()
      */
     public function buildJs()
     {
-        $editorInit = $this->getWidget()->isDisabled() ? $this->buildJsMarkdownInitViewer() : $this->buildJsMarkdownInitEditor();
-        return <<<JS
-
-        var {$this->buildJsMarkdownVar()} = {$editorInit}
-        {$this->buildJsLiveReference()}
-        {$this->buildJsOnChangeHandler()}
-
-JS;
+        $warning = (!empty($this->getWidget()->getMentions()) || !empty($this->getWidget()->getStencils()))
+            ? "console.warn('Markian mention and stencil controls are not available yet; existing document source is retained.');"
+            : '';
+        return $warning . $this->buildJsMarkdownInitEditor() . ';' . $this->buildJsEventScripts();
     }
 
     /**
-     *
      * {@inheritDoc}
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiInput::buildJsValidator()
      */
     public function buildJsValidator(?string $valJs = null) : string
     {
-        return $this->buildJsValidatorViaTrait($valJs);
+        $validator = $this->buildJsValidatorViaTrait($valJs);
+        $messageJs = $this->escapeMarkdownForInlineJavaScript($this->getValidationErrorText());
+        return <<<JS
+(function(){
+    var valid = ({$validator});
+    var host = document.getElementById({$this->escapeMarkdownForInlineJavaScript($this->getId())});
+    if (host) {
+        var root = host.querySelector('[data-markian]') || host;
+        root.setAttribute('aria-invalid', valid ? 'false' : 'true');
+        if (valid) root.removeAttribute('title'); else root.setAttribute('title', {$messageJs});
+    }
+    return valid;
+})()
+JS;
     }
 
     /**
-     *
      * {@inheritDoc}
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiInput::buildJsSetDisabled()
      */
     public function buildJsSetDisabled(bool $trueOrFalse) : string
     {
-        // TODO
-        if ($trueOrFalse === true) {
-            return '$("#' . $this->getId() . '").attr("disabled", "disabled")';
-        } else {
-            return '$("#' . $this->getId() . '").removeAttr("disabled")';
-        }
+        return '(function(){var e = ' . $this->buildJsMarkdownVar() . '; if(e) e.setDisabled(' . ($trueOrFalse ? 'true' : 'false') . ');})()';
     }
 
     /**
@@ -116,12 +112,48 @@ JS;
     }
 
     /**
-     *
      * {@inheritDoc}
+     *
      * @see \exface\JEasyUIFacade\Facades\Elements\EuiInput::buildJsRequiredGetter()
      */
     protected function buildJsRequiredGetter() : string
     {
-        return $this->getWidget()->isRequired() ? "true" : "false";
+        $default = $this->getWidget()->isRequired() ? 'true' : 'false';
+        return '(function(){var s = $(' . json_encode('#' . $this->getId()) . ').attr("aria-required"); return s === undefined ? ' . $default . ' : s === "true";})()';
+    }
+
+    /**
+     * Stores conditional required state without calling a nonexistent textbox plugin.
+     *
+     * {@inheritDoc}
+     *
+     * @see EuiInput::buildJsSetRequired()
+     */
+    protected function buildJsSetRequired(bool $required) : string
+    {
+        return '$(' . json_encode('#' . $this->getId()) . ').attr("aria-required", "' . ($required ? 'true' : 'false') . '");';
+    }
+
+    /**
+     * Routes only document changes, not bubbled toolbar input changes, to actions.
+     *
+     * {@inheritDoc}
+     *
+     * @see EuiInput::buildJsOnChangeHandler()
+     */
+    protected function buildJsOnChangeHandler()
+    {
+        return '$(' . json_encode('#' . $this->getId()) . ').off("change.exfMarkian").on("change.exfMarkian", function(event){'
+            . 'if(event.target !== this) return;' . $this->getOnChangeScript() . '});';
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see \exface\Core\Facades\AbstractAjaxFacade\Elements\AbstractJqueryElement::buildJsDestroy()
+     */
+    public function buildJsDestroy() : string
+    {
+        return $this->buildJsMarkdownRemove();
     }
 }

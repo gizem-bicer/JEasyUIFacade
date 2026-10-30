@@ -161,12 +161,102 @@ div.messager-body{overflow-y: auto;}
 .exf-control .jsoneditor .jsoneditor-contextmenu-root {position: fixed; z-index: 1;}
 
 /* Markdown */
+.exf-input-markdown .markian {
+    --markian-toolbar-height: 36px;
+    --markian-toolbar-padding: 4px 2px;
+    --markian-toolbar-button-height: 26px;
+    --exf-markian-border: #ddd;
+    --exf-markian-field-border: #95b8e7;
+    --exf-markian-field-border-width: 1px;
+    --exf-markian-radius: 5px;
+    --exf-markian-accent: #0e2d5f;
+    --exf-markian-hover: #eaf2ff;
+    --exf-markian-button-background: #fafafa;
+    --exf-markian-button-color: #444;
+    --exf-markian-menu-height: 24px;
+}
+.exf-input-markdown .markian-menu-items,
+.exf-input-markdown .markian-popup {
+    --markian-surface: #fff;
+    --markian-text: #404040;
+    --markian-muted: #666;
+    --markian-line: var(--exf-markian-border);
+    --markian-accent: var(--exf-markian-accent);
+    --markian-soft: var(--exf-markian-hover);
+    --markian-icon-size: 16px;
+    font: 12px/1.5 Helvetica, Arial, sans-serif;
+    color: var(--markian-text);
+}
+.exf-input-markdown .markian-menu-items {
+    padding: 2px;
+    border-radius: 0;
+    box-shadow: 2px 2px 3px #dfdfdf;
+}
+.exf-input-markdown .markian-menu-items > .markian-button:not(.markian-swatch),
+.exf-input-markdown .markian-menu-items > .markian-menu > summary {
+    min-height: var(--exf-markian-menu-height);
+    padding: 3px 6px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    font: inherit;
+}
+.exf-input-markdown .markian-menu-items > .markian-button:hover:not(:disabled),
+.exf-input-markdown .markian-menu-items > .markian-menu > summary:hover {
+    border-color: var(--exf-markian-border);
+    color: var(--markian-text);
+}
+.exf-input-markdown .markian-search,
+.exf-input-markdown .markian-destination {
+    padding: 10px;
+    gap: 8px;
+    border-radius: 2px;
+    box-shadow: 2px 2px 3px #dfdfdf;
+}
+.exf-input-markdown .markian-panel label,
+.exf-input-markdown .markian-panel output {font: inherit;}
+.exf-input-markdown .markian-panel input:not([type='checkbox']),
+.exf-input-markdown .markian-panel select {
+    height: 26px;
+    min-height: 26px;
+    padding: 2px 4px;
+    border-color: var(--exf-markian-field-border);
+    border-width: var(--exf-markian-field-border-width);
+    border-radius: var(--exf-markian-radius);
+    font: inherit;
+}
+.exf-input-markdown .markian-panel input:not([type='checkbox']):focus,
+.exf-input-markdown .markian-panel select:focus {
+    border-color: var(--exf-markian-accent);
+    outline: none;
+    box-shadow: none;
+}
+.exf-input-markdown .markian-panel input[type='checkbox'] {accent-color: var(--exf-markian-accent);}
+.exf-input-markdown .markian-panel-actions > button:not(.markian-button),
+.exf-input-markdown .markian-suggestions button,
+.exf-input-markdown .markian-destination input[type='file']::file-selector-button {
+    min-height: 26px;
+    padding: 2px 8px;
+    border: 1px solid var(--exf-markian-field-border);
+    border-radius: 2px;
+    background: var(--exf-markian-button-background);
+    color: var(--exf-markian-button-color);
+    font: inherit;
+    cursor: pointer;
+}
+.exf-input-markdown .markian-destination input[type='file'] {padding: 0;}
+.exf-input-markdown .markian-destination input[type='file']::file-selector-button {min-height: 0;}
+.exf-input-markdown .markian-panel-actions > .markian-button {width: 26px; height: 26px; border-radius: 2px; font: inherit;}
+.exf-input-markdown .markian-panel button:focus-visible {outline: 1px dotted var(--exf-markian-accent); outline-offset: -2px;}
+.exf-input-markdown .markian-panel button:disabled {opacity: .5; cursor: default;}
 /* github-markdown-css 5.x paints .markdown-body white - keep the background of the surrounding panel */
 .markdown-body {font-size: 14px !important; background-color: transparent;}
+.exf-markdown .markian-viewer, .exf-markdown .markdown-body {background-color: transparent;}
 .easyui-dialog > .markdown-body {padding: 20px 10px 10px 10px}
-.exf-markdown.markdown-body table > thead > tr {background-color: #f2f2f2;}
+.exf-markdown.markdown-body table > thead > tr,
+.exf-markdown .markdown-body table > thead > tr {background-color: #f2f2f2;}
 /* github-markdown-css 5.x sizes tables to their content (width: max-content) - keep them full width */
-.exf-markdown.markdown-body table {display: table; width: 100%;}
+.exf-markdown.markdown-body table,
+.exf-markdown .markdown-body table {display: table; width: 100%;}
 
 /* jQuery FileUpload */
 .fileupload-files{margin-top: 10px;}
@@ -451,10 +541,6 @@ table.jexcel .jdropdown-default.jdropdown-focus .jdropdown-header {
 .accordion-body {width: auto !important;}
 .panel-body {width: auto !important;}
 
-/* TOAST UI Editor */
-.tui-tooltip {z-index: 999999 !important;}
-.markdown-editor.fullscreen {position: fixed; top: 0; left: 0; z-index: 10050; width: 100%!important;}
-.toastui-editor-defaultUI {background-color: white; overflow: hidden;}
 .exf-input-markdown .ProseMirror {height: 100%}
 
 /* InputTags */
