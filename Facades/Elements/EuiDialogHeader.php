@@ -103,7 +103,6 @@ JS;
                     jqPanel.height(Math.round(iHeight));
                     {$setBodyHeightJs}
                 }
-                console.log(jqPanel.height(), iHeight);
             }, 0);
 JS;
     }

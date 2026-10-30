@@ -24,7 +24,26 @@ class EuiCommentsFeed extends EuiData
 {    
     use JsUploaderTrait;
     use JqueryCommentsTrait;
-    use EuiDataElementTrait;
+    use EuiDataElementTrait {
+        init as initDataElement;
+    }
+
+    private $linkedFilterHandlersRegistered = false;
+
+    /**
+     * Enables the standard linked-filter refresh before the configurator registers its change handlers.
+     *
+     * @return void
+     */
+    protected function init()
+    {
+        $this->initDataElement();
+        foreach ($this->getWidget()->getFilters() as $filter) {
+            if ($filter->getValueWidgetLink() !== null) {
+                $filter->setApplyOnChange(true);
+            }
+        }
+    }
     
     public function buildHtmlHeadTags()
     {
@@ -46,23 +65,27 @@ class EuiCommentsFeed extends EuiData
         ];
     }
 
+    /**
+     * Reuses the standard data header to render hidden filter inputs while preserving the feed's headerless markup.
+     *
+     * @return string
+     */
     public function buildHtml()
     {
-        $chart_panel_options = "title: '{$this->getCaption()}'";
         $gridItemClass = $this->getMasonryItemClass() . ' exf-commentsfeed exf-data-widget';
         if ($this->getWidget()->getHideHeader()) {
             $gridItemClass .= ' exf-data-hide-header';
         }
-        $panel = <<<HTML
+        $headerHtml = $this->buildHtmlTableHeader();
+
+        return <<<HTML
 
         <div class="exf-grid-item {$gridItemClass}" style="width:{$this->getWidth()};min-width:{$this->getMinWidth()};padding:{$this->getPadding()};box-sizing:border-box;">
-    
-    	   {$this->buildHtmlComments()}
+            {$headerHtml}
+            {$this->buildHtmlComments()}
         </div>
 
 HTML;
-    
-        return $panel;
     }
 
     protected function buildHtmlComments() : string
@@ -71,12 +94,13 @@ HTML;
     }
 
     /**
-     * Builds facade JavaScript around the shared comments configuration to keep adapter-specific output minimal.
+     * Builds the comments integration after wiring linked filters to refresh and update create availability.
      *
      * @return string
      */
     function buildJs()
     {
+        $this->registerLinkedFilterStateHandlers();
         $this->registerCommentsFeedErrorCallbacks();
         /** @var EuiButton $createButton */
         $createButton = $this->getFacade()->getElement($this->getWidget()->getButtonCreate());
@@ -95,6 +119,7 @@ HTML;
             $editButton->buildJsClickFunctionName(),
             $deleteButton->buildJsClickFunctionName()
         )}
+        {$this->buildJsUpdateReadOnlyState()}
     }
     
     {$this->buildJsDataLoadFunction()}
@@ -104,6 +129,37 @@ HTML;
     {$this->buildJsButtons()}
 
 JS;
+    }
+
+    /**
+     * Registers state updates on linked filters so the existing apply-on-change refresh also unlocks new comments.
+     *
+     * @return void
+     */
+    protected function registerLinkedFilterStateHandlers() : void
+    {
+        if ($this->linkedFilterHandlersRegistered === true) {
+            return;
+        }
+        $updateStateJs = $this->buildJsUpdateReadOnlyState();
+        foreach ($this->getWidget()->getFilters() as $filter) {
+            if ($filter->getValueWidgetLink() !== null) {
+                $this->getFacade()->getElement($filter)->addOnChangeScript($updateStateJs);
+            }
+        }
+        $this->linkedFilterHandlersRegistered = true;
+    }
+
+    /**
+     * Hides comment creation while required filters are invalid, as in a create dialog without a parent id.
+     *
+     * @return string
+     */
+    protected function buildJsUpdateReadOnlyState() : string
+    {
+        $elementSelector = '$(' . $this->escapeString('#' . $this->getId(), true, false) . ')';
+        $configuratorElement = $this->getFacade()->getElement($this->getWidget()->getConfiguratorWidget());
+        return "{$elementSelector}.toggleClass('read-only', ! ({$configuratorElement->buildJsValidator()}));";
     }
 
     /**
@@ -148,60 +204,88 @@ JS;
         
         return <<<JS
 
-    // Don't load if already loading    
-        if ({$elementSelector}.data('_loading')) return;
-        
-        {$elementSelector}.data('_loading', 1);
-
-        var param = {
-            action: {$actionAlias},
-            resource: {$pageAlias},
-            element: {$widgetId},
-            object: {$objectId}
+        var jqCommentsFeed = {$elementSelector};
+        var finishSuccess = function(aRows) {
+            jqCommentsFeed.data('_loading', 0);
+            {$successJs}(aRows || []);
+        };
+        var finishError = function() {
+            jqCommentsFeed.data('_loading', 0);
+            if (typeof {$errorJs} === 'function') {
+                {$errorJs}.apply(null, arguments);
+            }
         };
 
-        var checkOnBeforeLoad = function(param){
-            {$this->buildJsOnBeforeLoadScript('param')}
-            {$this->buildJsOnBeforeLoadAddConfiguratorData('param')}
-        }(param);
-
-        if (checkOnBeforeLoad === false) {
+        if (jqCommentsFeed.data('_loading')) {
+            finishSuccess([]);
             return;
         }
+        jqCommentsFeed.data('_loading', 1);
 
-        param = $.extend(param, ({$oParamsJs} || {}));
-        $.ajax({
-        url: {$ajaxUrl},
-        data: param,
-        method: 'POST',
-        success: function(json){
-                var aRowsMod = [];
-                try {
+        try {
+            var param = {
+                action: {$actionAlias},
+                resource: {$pageAlias},
+                element: {$widgetId},
+                object: {$objectId}
+            };
 
-                    {$this->buildJsLoadFilterHandleWidgetLinks('json.rows')}
-                        
-                    json.rows.forEach(function(oRow, i){
-                        var oRowMod = oRow;
-                        oRowMod._modified = oRow[{$commentEditedColumn}];
-                        aRowsMod.push(oRowMod);
-                    });
-                    {$successJs} (aRowsMod);
-                    
-                    {$elementSelector}.data('_loading', 0);
+            var checkOnBeforeLoad = function(param){
+                {$this->buildJsOnBeforeLoadScript('param')}
+                {$this->buildJsOnBeforeLoadAddConfiguratorData('param')}
+            }.call(jqCommentsFeed[0], param);
 
-                } catch (err) {
-                    console.error(err);
-                }
-            },
-            error: function(jqXHR, textStatus, errorThrown){
-                {$elementSelector}.data('_loading', 0);
-                {$this->buildJsShowErrorAjax('jqXHR')}
-                //TODO call error callback
-                {$errorJs} (jqXHR, textStatus, errorThrown);
+            if (checkOnBeforeLoad === false) {
+                finishSuccess([]);
+                return;
             }
-        });
+
+            param = $.extend(param, ({$oParamsJs} || {}));
+            $.ajax({
+                url: {$ajaxUrl},
+                data: param,
+                method: 'POST',
+                success: function(json){
+                    var aRowsMod = [];
+                    try {
+                        {$this->buildJsLoadFilterHandleWidgetLinks('json.rows')}
+
+                        json.rows.forEach(function(oRow){
+                            var oRowMod = oRow;
+                            oRowMod._modified = oRow[{$commentEditedColumn}];
+                            aRowsMod.push(oRowMod);
+                        });
+                        finishSuccess(aRowsMod);
+                    } catch (err) {
+                        console.error(err);
+                        finishError(err);
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown){
+                    try {
+                        {$this->buildJsShowErrorAjax('jqXHR')}
+                    } finally {
+                        finishError(jqXHR, textStatus, errorThrown);
+                    }
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            finishError(err);
+        }
 	
 JS;
+    }
+
+    /**
+     * Keeps a new parent dialog's feed empty instead of showing an invalid-filter warning before the parent has an id.
+     *
+     * {@inheritDoc}
+     * @see \exface\JEasyUIFacade\Facades\Elements\EuiData::buildJsAutoloadDisabledMessageShow()
+     */
+    protected function buildJsAutoloadDisabledMessageShow(string $text = null) : string
+    {
+        return '';
     }
 
     protected function buildJsCommentsData() : string
