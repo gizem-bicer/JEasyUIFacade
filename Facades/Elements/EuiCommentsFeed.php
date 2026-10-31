@@ -61,7 +61,8 @@ class EuiCommentsFeed extends EuiData
     {
         return [
             '<script type="text/javascript" src="vendor/bower-asset/jquery-comments/js/jquery-comments.js"></script>',
-            '<link rel="stylesheet" type="text/css" href="vendor/bower-asset/jquery-comments/css/jquery-comments.css">'
+            '<link rel="stylesheet" type="text/css" href="vendor/bower-asset/jquery-comments/css/jquery-comments.css">',
+            '<link rel="stylesheet" type="text/css" href="vendor/exface/jeasyuifacade/Facades/js/jquery-comments.exface.css">'
         ];
     }
 

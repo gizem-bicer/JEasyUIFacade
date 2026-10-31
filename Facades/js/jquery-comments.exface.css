@@ -1,0 +1,56 @@
+.exf-commentsfeed .jquery-comments ul.main li.comment {
+    margin-bottom: 0.75rem;
+}
+
+.exf-commentsfeed .jquery-comments .commenting-field .textarea {
+    border-color: #ccc;
+    background: #fff;
+    color: #404040;
+}
+
+.exf-commentsfeed .jquery-comments .commenting-field .textarea:empty:not(:focus)::before {
+    color: #888;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment > .comment-wrapper {
+    box-sizing: border-box;
+    width: fit-content;
+    min-width: min(12rem, 75%);
+    max-width: 75%;
+    margin-right: auto;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 1rem 1rem 1rem 0.25rem;
+    background: #f5f5f5;
+    color: #404040;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment.by-current-user > .comment-wrapper {
+    margin-right: 0;
+    margin-left: auto;
+    border-color: #6caef5;
+    border-radius: 1rem 1rem 0.25rem;
+    background: #eaf2ff;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment.by-current-user > .comment-wrapper > .profile-picture {
+    display: none;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment .comment-header,
+.exf-commentsfeed .jquery-comments ul.main li.comment .wrapper .content,
+.exf-commentsfeed .jquery-comments ul.main li.comment .wrapper .content a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment time,
+.exf-commentsfeed .jquery-comments ul.main li.comment .wrapper .content time.edited,
+.exf-commentsfeed .jquery-comments ul.main li.comment .actions > * {
+    color: #666;
+}
+
+.exf-commentsfeed .jquery-comments ul.main li.comment .actions .action {
+    position: relative;
+    z-index: 1;
+}
