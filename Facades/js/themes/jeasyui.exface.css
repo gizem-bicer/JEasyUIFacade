@@ -211,8 +211,10 @@ div.messager-body{overflow-y: auto;}
     font: inherit;
 }
 .exf-input-markdown .markian-menu-items > .markian-button:hover:not(:disabled),
+.exf-input-markdown .markian-menu-items > .markian-button[aria-selected='true'],
 .exf-input-markdown .markian-menu-items > .markian-menu > summary:hover {
     border-color: var(--exf-markian-border);
+    background: var(--markian-soft);
     color: var(--markian-text);
 }
 .exf-input-markdown .markian-search,
@@ -242,7 +244,6 @@ div.messager-body{overflow-y: auto;}
 }
 .exf-input-markdown .markian-panel input[type='checkbox'] {accent-color: var(--exf-markian-accent);}
 .exf-input-markdown .markian-panel-actions > button:not(.markian-button),
-.exf-input-markdown .markian-suggestions button,
 .exf-input-markdown .markian-destination input[type='file']::file-selector-button {
     min-height: 26px;
     padding: 2px 8px;
