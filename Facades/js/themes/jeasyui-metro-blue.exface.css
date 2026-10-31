@@ -14,6 +14,7 @@ ul.nav_menu li.active a.current {color: white; background: #6caef5}
 .exf-data-header .tabs-container, .exf-data-header .panel-body {background: #f5f5f5}
 
 /* Inputs */
+.exf-inputtext, .exf-input-markdown {--exf-input-focus-color: #a1c4cf;}
 .exf-input textarea {border-color: #c3d9e0; height: calc(100% - 6px); width: calc(100% - 6px)}
 fieldset.exface_inputgroup {border-color: #95B8E7;}
 fieldset.exface_inputgroup legend {color: #404040;}

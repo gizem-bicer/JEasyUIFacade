@@ -62,8 +62,8 @@ class EuiInputMarkdown extends EuiInput
      */
     public function buildJs()
     {
-        $warning = (!empty($this->getWidget()->getMentions()) || !empty($this->getWidget()->getStencils()))
-            ? "console.warn('Markian mention and stencil controls are not available yet; existing document source is retained.');"
+        $warning = !empty($this->getWidget()->getStencils())
+            ? "console.warn('Markian stencil controls are not available yet; existing document source is retained.');"
             : '';
         return $warning . $this->buildJsMarkdownInitEditor() . ';' . $this->buildJsEventScripts();
     }

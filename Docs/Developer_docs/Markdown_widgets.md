@@ -18,7 +18,7 @@ Install the declared `axenox/markian` Composer dependency alongside a Core conta
 
 ## Input Widgets
 
-`EuiInputMarkdown` uses Markian without an opt-in setting. All inputs request visual startup, regardless of legacy `editor_mode`. Unsupported visual Markdown can still fall back to source mode under the library's preservation policy. Mention/stencil insertion controls require the unfinished W8 integration. Configured widgets remain editable and retain their document source, but emit a console warning because those controls are unavailable. They never switch editors.
+`EuiInputMarkdown` uses Markian without an opt-in setting. All inputs request visual startup, regardless of legacy `editor_mode`. Unsupported visual Markdown can still fall back to source mode under the library's preservation policy. Configured mentions support suggestions and compact chips in Visual mode. Stencil insertion controls remain unfinished and emit a console warning; they never switch editors.
 
 The shared jEasyUI theme scopes Markian toolbar sizing to `.exf-input-markdown .markian`: a 36px toolbar with 26px-high buttons matches table action toolbars. It uses Markian's toolbar CSS variables without changing menus or styling other hosts.
 
@@ -29,6 +29,46 @@ The additive Core trait supplies safe source encoding, value access, replacement
 Inputs retain jEasyUI live references, conditional disabled/required settings and framework data-type validation. Validation sets `aria-invalid` and its message on the Markian root. Disabled/read-only inputs remain editors with selection, search, copying and navigation. Runtime enabling does not discard drafts. Layout changes remeasure the visible editor through `ResizeObserver`; dialog destruction and DOM removal dispose owned instances and observers.
 
 `allow_images: false` removes only the `image` toolbar item through Markian's recursive toolbar registry API, preserving default and custom menus, and rejects raster paste/drop callbacks. Existing image source is preserved, not regex-stripped. This pilot does **not** prevent manually entered image Markdown in Source or pasted textual Markdown; strict source-level image permission enforcement remains a W9 gate. It is not a server authorization boundary.
+
+## Mentions
+
+Mention models keep separate `tag_prefix` and `tag_text_regex` properties. Widgets remain abstract configuration models: Core's `MarkianTrait` translates them into library rules, and `MarkianAdapter` owns the facade's AJAX transport. Markian contains no object aliases, credentials or endpoint logic.
+
+```json
+{
+	"mentions": [{
+		"caption": "Record",
+		"tag_prefix": "#",
+		"tag_text_regex": "\\d*",
+		"tag_color": "lightblue",
+		"autosuggest": {
+			"object_alias": "example.App.RECORD",
+			"filter_attribute": "NUMBER",
+			"tag_attribute": "NUMBER",
+			"suggestion_attribute": "LABEL",
+			"max_number_of_rows": 10
+		}
+	}]
+}
+```
+
+The prefix triggers suggestions; the body pattern must match the complete text after it. Omission of the pattern means `.*`. Tag bodies are bounded words containing Unicode letters/numbers, underscores and hyphens, not spaces or arbitrary Markdown. Use `*` rather than `+` when suggestions should appear immediately after the prefix.
+
+All three attribute aliases belong to `autosuggest` and are relative to its `object_alias`, including relation paths. `filter_attribute` controls query matching, `suggestion_attribute` supplies the menu label, and `tag_attribute` supplies the value inserted after the prefix. If the latter two are omitted, they use the effective filter attribute. If the filter is omitted, the object's label attribute is used, or its UID when there is no label. The old mention-level `tag_text_attribute` and `filter_attribute_alias` are removed, with no compatibility aliases.
+
+Suggestions use the configured ReadData action, page/widget identity and facade headers. The adapter requests all three columns and a row limit from 1 to 100 (default 10). A bare prefix reads the first limited results. Nonempty queries use an OR condition over `filter_attribute` and `tag_attribute`, with duplicate attributes removed. Numeric fields can require a complete number. Queries must still match `tag_text_regex` to activate suggestions.
+
+The bridge omits numeric-field conditions for nonnumeric queries. This allows text searches when the inserted tag is a numeric identifier, without a server casting error. If no field can accept a nonempty query, it returns no suggestions without sending an unfiltered request.
+
+Core's color parser converts opaque CSS colors, including names and short hex values, into Markian's hex background tint. Text retains its regular color. Selecting a result inserts the prefix and value as plain Markdown text followed by one space. Existing recognized mention links retain their source. Source/Preview and standalone viewers keep ordinary text/link presentation without suggestion requests.
+
+Queries are aborted on cancellation; Markian rejects stale results after edits, view/permission changes or destruction. Loading, empty and failure states preserve the document. Keyboard selection and read-only restrictions remain library-owned. The suggestion button is cached per mention so rendering and server-side widget lookup use the same ID.
+
+Suggestion rows use ordinary dropdown colors, not filled action-button styling. Only the hovered or keyboard-selected row receives the menu highlight.
+
+Opening autosuggest dismisses the details tooltip and suppresses hover/focus details until the menu closes. Details text has equal padding on all sides, without extra space for an absent description.
+
+Chip activation opens suggestions filtered by the complete tag body, including the `tag_attribute` condition, and emits the bubbling host event `exf-markian-tag-click`, whose `detail` is `{ rule, value, destination? }`. Hosts can subscribe to navigate or show a related record; clicking does not modify Markdown. Read-only activation keeps details without insertion suggestions. The default hover/focus details show the configured caption and tag text. No record action is invented when the model has none.
 
 ## Display Widgets
 

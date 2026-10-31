@@ -1,8 +1,140 @@
 const {test, expect} = require(process.env.PLAYWRIGHT_MODULE || '@playwright/test');
+const {readFileSync} = require('node:fs');
+const {join} = require('node:path');
 
 test.beforeEach(async ({page}) => {
     await page.goto('/exface/jeasyuifacade/Tests/Playwrite/markian.html');
     await page.evaluate(() => Promise.all([editor.ready, viewer.ready]));
+});
+
+test('mention bridge sends bounded filtered requests and preserves plain insertion and activation', async ({page}) => {
+    await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
+    const requests = [];
+    await page.route('**/mention-fixture', async route => {
+        requests.push(new URLSearchParams(route.request().postData()));
+        await route.fulfill({json: {rows: [{SEARCH_TEXT: 'Hidden filter value', LABEL: 'Review', NUMBER: 123}]}});
+    });
+    await page.evaluate(async () => {
+        editor.destroy();
+        window.tagClicks = [];
+        document.getElementById('editor').addEventListener('exf-markian-tag-click', event => tagClicks.push(event.detail.value));
+        const tags = MarkianAdapter.buildTags([{id: 'ticket', prefix: '#', textRegex: '\\d*', color: '#add8e6', caption: 'Ticket', filterAttribute: 'SEARCH_TEXT', tagAttribute: 'NUMBER', suggestionAttribute: 'LABEL', limit: 10, url: '/mention-fixture', headers: {}, request: {action: 'exface.Core.ReadData', object: 'record-object', resource: 'example.App.page', element: 'suggestion-button'}}]);
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {markdown: 'Review', tags}, false);
+        await editor.ready;
+    });
+    const prose = page.locator('#editor .ProseMirror');
+    await prose.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type(' #');
+    await expect(page.locator('#editor .markian-tag-suggestions button')).toHaveText(['Review']);
+    expect(requests[0].get('rows')).toBe('10');
+    expect(requests[0].get('element')).toBe('suggestion-button');
+    expect(requests[0].has('data[filters][conditions][0][value]')).toBe(false);
+    await page.keyboard.type('12');
+    await expect.poll(() => requests.length).toBe(2);
+    await expect(page.locator('#editor .markian-tag-suggestions button')).toHaveText(['Review']);
+    expect(requests[1].get('data[filters][conditions][0][value]')).toBe('12');
+    expect(requests[1].getAll('data[columns][]')).toEqual(['SEARCH_TEXT', 'NUMBER', 'LABEL']);
+    expect(requests[1].get('data[filters][conditions][0][expression]')).toBe('SEARCH_TEXT');
+    expect(requests[1].get('data[filters][operator]')).toBe('OR');
+    expect(requests[1].get('data[filters][conditions][1][expression]')).toBe('NUMBER');
+    expect(requests[1].get('data[filters][conditions][1][value]')).toBe('12');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => editor.get())).toBe('Review #123 ');
+    const chip = page.locator('#editor [data-markian-tag]');
+    await chip.click();
+    expect(await page.evaluate(() => tagClicks)).toEqual(['#123']);
+    expect(await chip.evaluate(element => ({tint: element.style.getPropertyValue('--markian-tag-color'), color: getComputedStyle(element).color, proseColor: getComputedStyle(element.parentElement).color}))).toEqual({tint: '#add8e6', color: 'rgb(38, 44, 43)', proseColor: 'rgb(38, 44, 43)'});
+    await prose.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type('#');
+    await expect(page.locator('#editor .markian-tag-suggestions')).toBeVisible();
+    await page.evaluate(() => editor.setDisabled(true));
+    await expect(page.locator('#editor .markian-tag-suggestions')).toHaveCount(0);
+});
+
+test('mention click lookup uses complete plain and legacy tag values without editing the draft', async ({page}) => {
+    await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
+    const requests = [];
+    await page.route('**/mention-click-fixture', async route => {
+        requests.push(new URLSearchParams(route.request().postData()));
+        await route.fulfill({json: {rows: [{LABEL: 'Review', NUMBER: 123}]}});
+    });
+    for (const markdown of ['Review #123 ', 'Review [#123]() ']) {
+        await page.evaluate(async markdown => {
+            editor.destroy();
+            const tags = MarkianAdapter.buildTags([{id: 'ticket', prefix: '#', textRegex: '\\d*', filterAttribute: 'SEARCH_TEXT', tagAttribute: 'NUMBER', suggestionAttribute: 'LABEL', limit: 10, url: '/mention-click-fixture', request: {object: 'record-object'}}]);
+            window.editor = MarkianAdapter.mount(document.getElementById('editor'), {markdown, tags}, false);
+            await editor.ready;
+        }, markdown);
+        const original = await page.evaluate(() => editor.get());
+        const chip = page.locator('#editor [data-markian-tag]');
+        await chip.click();
+        await expect(page.locator('#editor .markian-tag-suggestions button')).toHaveText(['Review']);
+        expect(requests.at(-1).get('data[filters][conditions][0][value]')).toBe('123');
+        expect(requests.at(-1).get('data[filters][conditions][1][expression]')).toBe('NUMBER');
+        expect(requests.at(-1).get('data[filters][conditions][1][value]')).toBe('123');
+        expect(await page.evaluate(() => editor.get())).toBe(original);
+        await page.keyboard.press('Escape');
+        await chip.focus(); await page.keyboard.press('Enter');
+        await expect(page.locator('#editor .markian-tag-suggestions button')).toHaveText(['Review']);
+        expect(requests.at(-1).get('data[filters][conditions][1][value]')).toBe('123');
+        if (markdown === 'Review #123 ') {
+            await page.locator('#editor .markian-tag-suggestions button').click();
+            expect(await page.evaluate(() => editor.get())).toBe(original);
+        }
+        await page.evaluate(() => editor.setDisabled(true));
+        await chip.click();
+        await expect(page.locator('#editor .markian-tag-suggestions')).toHaveCount(0);
+    }
+});
+
+test('mention bridge skips numeric fields for text queries without dropping numeric tag lookup', async ({page}) => {
+    await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
+    const requests = [];
+    await page.route('**/mention-numeric-fixture', async route => {
+        requests.push(new URLSearchParams(route.request().postData()));
+        await route.fulfill({json: {rows: [{LABEL: 'Review record', NUMBER: 123}]}});
+    });
+    const result = await page.evaluate(async () => {
+        const model = {id: 'ticket', prefix: '#', filterAttribute: 'LABEL', filterAttributeIsNumeric: false, tagAttribute: 'NUMBER', tagAttributeIsNumeric: true, suggestionAttribute: 'LABEL', limit: 10, url: '/mention-numeric-fixture', request: {object: 'record-object'}};
+        const tag = MarkianAdapter.buildTags([model])[0];
+        const lookup = query => tag.onSuggest({query, signal: new AbortController().signal});
+        const text = await lookup('roll');
+        const number = await lookup('123');
+        const empty = await lookup('');
+        const numericOnly = MarkianAdapter.buildTags([Object.assign({}, model, {filterAttribute: 'NUMBER', filterAttributeIsNumeric: true})])[0];
+        const invalid = await numericOnly.onSuggest({query: 'roll', signal: new AbortController().signal});
+        return {text, number, empty, invalid};
+    });
+    expect(result.text).toEqual([{label: 'Review record', value: '#123'}]);
+    expect(result.number).toEqual(result.text);
+    expect(result.empty).toEqual(result.text);
+    expect(result.invalid).toEqual([]);
+    expect(requests).toHaveLength(3);
+    expect(requests[0].get('data[filters][conditions][0][expression]')).toBe('LABEL');
+    expect(requests[0].get('data[filters][conditions][0][value]')).toBe('roll');
+    expect(requests[0].has('data[filters][conditions][1][expression]')).toBe(false);
+    expect(requests[1].get('data[filters][conditions][1][expression]')).toBe('NUMBER');
+    expect(requests[1].get('data[filters][conditions][1][value]')).toBe('123');
+    expect(requests[2].has('data[filters][conditions][0][expression]')).toBe(false);
+});
+
+test('mention bridge aborts an in-flight transport when the provider signal is cancelled', async ({page}) => {
+    await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
+    const result = await page.evaluate(async () => {
+        const original = jQuery.ajax;
+        let aborted = false;
+        jQuery.ajax = () => {
+            const request = jQuery.Deferred();
+            request.abort = () => { aborted = true; request.reject({}, 'abort'); };
+            return request;
+        };
+        try {
+            const tag = MarkianAdapter.buildTags([{id: 'ticket', prefix: '#', filterAttribute: 'NUMBER', tagAttribute: 'NUMBER', suggestionAttribute: 'LABEL', limit: 10, request: {object: 'record'}}])[0];
+            const controller = new AbortController();
+            const pending = tag.onSuggest({query: '12', signal: controller.signal}).catch(error => error.name);
+            controller.abort();
+            return {aborted, error: await pending};
+        } finally { jQuery.ajax = original; }
+    });
+    expect(result).toEqual({aborted: true, error: 'AbortError'});
 });
 
 test('prefill, explicit clear, drafts and disabled transitions retain the binding value', async ({page}) => {
@@ -66,6 +198,95 @@ test('disabling image insertion preserves default menus and custom nested toolba
     await page.evaluate(() => editor.instance.setMode('raw'));
     await expect(toolbar).toContainText('Host copy');
     await expect(toolbar.locator('[data-command="image"]')).toHaveCount(0);
+});
+
+for (const template of [
+    {name: 'metro blue', theme: 'metro-blue', emphasis: '', focus: 'rgb(161, 196, 207)'},
+    {name: 'material', theme: 'material', emphasis: '', focus: 'rgb(98, 0, 238)'},
+    {name: 'material light', theme: 'material-light', emphasis: '', focus: 'rgb(98, 0, 238)'},
+    {name: 'material grey', theme: 'material', emphasis: '#546E7A', focus: 'rgb(84, 110, 122)'},
+    {name: 'material purple', theme: 'material', emphasis: '#6A1B9A', focus: 'rgb(106, 27, 154)'},
+    {name: 'material red', theme: 'material', emphasis: '#BF360C', focus: 'rgb(191, 54, 12)'}
+]) {
+    test(`page template ${template.name} shares left-border focus across Markdown and text inputs`, async ({page}) => {
+        const themeRoot = '/exface/jeasyuifacade/Facades/js/themes/';
+        await page.addStyleTag({url: themeRoot + template.theme + '/easyui.css'});
+        await page.addStyleTag({url: themeRoot + 'jeasyui.exface.css'});
+        await page.addStyleTag({url: themeRoot + 'jeasyui-' + (template.theme === 'metro-blue' ? 'metro-blue' : 'material') + '.exface.css'});
+        if (template.theme === 'material-light') {
+            await page.addStyleTag({url: themeRoot + 'jeasyui-material-light.exface.css'});
+        }
+        const source = readFileSync(join(__dirname, '../../Facades/Templates/EuiDefaultTemplate.html'), 'utf8');
+        const emphasisCss = await page.evaluate(({source, emphasis}) => {
+            const parsed = new DOMParser().parseFromString(source, 'text/html');
+            return parsed.querySelector('style').textContent.replaceAll('[#~facade:theme_emphasis_color#]', emphasis);
+        }, {source, emphasis: template.emphasis});
+        await page.addStyleTag({content: emphasisCss});
+        await page.evaluate(() => {
+            document.getElementById('editor').classList.add('exf-input-markdown');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'exf-input exf-inputtext';
+            wrapper.style.height = '70px';
+            const textarea = document.createElement('textarea');
+            textarea.value = 'Plain text';
+            wrapper.append(textarea);
+            document.getElementById('editor').before(wrapper);
+        });
+        const markdown = page.locator('#editor .markian');
+        const text = page.locator('.exf-inputtext textarea');
+        for (const width of [1100, 390]) {
+            await page.setViewportSize({width, height: 850});
+            for (const [control, target, other] of [[markdown, markdown.locator('.ProseMirror'), text], [text, text, markdown.locator('.ProseMirror')]]) {
+                await other.click();
+                const before = await control.evaluate(element => {
+                    const style = getComputedStyle(element);
+                    return {top: style.borderTopColor, right: style.borderRightColor, bottom: style.borderBottomColor, left: style.borderLeftColor, width: element.offsetWidth, height: element.offsetHeight};
+                });
+                await target.click();
+                await expect(control).toHaveCSS('border-radius', '0px');
+                await expect(control).toHaveCSS('border-left-color', template.focus);
+                await expect(control).toHaveCSS('border-top-color', before.top);
+                await expect(control).toHaveCSS('border-right-color', before.right);
+                await expect(control).toHaveCSS('border-bottom-color', before.bottom);
+                expect(await control.evaluate(element => ({width: element.offsetWidth, height: element.offsetHeight}))).toEqual({width: before.width, height: before.height});
+                await other.click();
+                await expect(control).toHaveCSS('border-left-color', before.left);
+            }
+        }
+    });
+}
+
+test('mention menus share neutral dropdown rows and selected styling', async ({page}) => {
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/jeasyui.exface.css'});
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/jeasyui-material.exface.css'});
+    await page.evaluate(async () => {
+        editor.destroy();
+        document.getElementById('editor').classList.add('exf-input-markdown');
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {markdown: 'Review', tags: [{id: 'ticket', prefix: '#', onSuggest: () => [
+            {label: 'First record', value: '#123'}, {label: 'Second record', value: '#124'}, {label: 'Third record', value: '#125'}
+        ]}]}, false);
+        await editor.ready;
+    });
+    await page.locator('#editor .markian-menu[data-toolbar-item="formatting"] > summary').click();
+    const regular = page.locator('#editor .markian-menu-items:popover-open [data-command="bold"]');
+    const normal = await regular.evaluate(element => ({background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color}));
+    await regular.hover();
+    const hover = await regular.evaluate(element => ({background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color}));
+    await page.keyboard.press('Escape');
+    const prose = page.locator('#editor .ProseMirror');
+    await prose.focus(); await page.keyboard.press('Control+End'); await page.keyboard.type(' #');
+    const choices = page.locator('#editor .markian-tag-suggestions button');
+    await expect(choices).toHaveCount(3);
+    for (const width of [1100, 390]) {
+        await page.setViewportSize({width, height: 850});
+        for (const index of [1, 2]) {
+            expect(await choices.nth(index).evaluate(element => ({background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color}))).toEqual(normal);
+        }
+        expect(await choices.first().evaluate(element => ({background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color}))).toEqual(hover);
+    }
+    await prose.focus(); await page.keyboard.press('ArrowDown');
+    await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'true');
+    expect(await choices.first().evaluate(element => ({background: getComputedStyle(element).backgroundColor, color: getComputedStyle(element).color}))).toEqual(normal);
 });
 
 test('jEasyUI themes scope dropdown and image link search popup styling', async ({page}) => {

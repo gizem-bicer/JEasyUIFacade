@@ -43,6 +43,7 @@ ul.nav_menu a:hover {background-color: #6200ee; color: white}
 .l-btn-plain.exf-svg-icon svg {fill: #6200ee;}
 
 /* Inputs */
+.exf-inputtext, .exf-input-markdown {--exf-input-focus-color: #6200ee;}
 .exf-input-markdown .markian {
 	--exf-markian-border: #dfdfdf;
 	--exf-markian-field-border: #c2c2c2;
@@ -55,7 +56,7 @@ ul.nav_menu a:hover {background-color: #6200ee; color: white}
 	--exf-markian-menu-height: 32px;
 }
 .exf-input textarea {border-color: #dfdfdf; border-bottom-color: #c2c2c2; height: 100%; width: 100%;}
-.exf-input textarea:focus-visible {outline: none; border-bottom-color: #6200ee}
+.exf-input:not(.exf-inputtext) textarea:focus-visible {outline: none; border-bottom-color: #6200ee}
 fieldset.exface_inputgroup {border-color: #95B8E7;}
 fieldset.exface_inputgroup legend {color: #404040;}
 /* Inputs required */

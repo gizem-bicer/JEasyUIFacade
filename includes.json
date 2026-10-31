@@ -1,7 +1,35 @@
 [
     {
+        "name": "bower-asset/jquery-qrcode",
+        "license": ["MIT"],
+        "license_link": {
+            "MIT": "https://raw.githubusercontent.com/gcusnieux/jquery-qrcode/2d05056217d5b46e2dbadde1ea8a1ca3cd2b6ad8/MIT-LICENSE.txt"
+        }
+    },
+    {
+        "name": "npm-asset/leaflet-extra-markers",
+        "license": ["MIT"],
+        "license_link": {
+            "MIT": "https://raw.githubusercontent.com/coryasilva/Leaflet.ExtraMarkers/v1.2.2/LICENSE"
+        }
+    },
+    {
+        "name": "npm-asset/slick-lightbox",
+        "license": ["MIT"],
+        "license_link": {
+            "MIT": "https://raw.githubusercontent.com/mreq/slick-lightbox/v0.2.12/LICENSE"
+        }
+    },
+    {
+        "name": "npm-asset/union",
+        "license": ["MIT"],
+        "license_link": {
+            "MIT": "https://raw.githubusercontent.com/flatiron/union/0.5.0/LICENSE"
+        }
+    },
+    {
         "name": "npm-asset/plotly.js",
-        "version": "2.32.0",
+        "version": "1.58.5",
         "license": [
 	        "MIT"
 	    ],

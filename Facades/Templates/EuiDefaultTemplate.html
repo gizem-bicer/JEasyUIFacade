@@ -39,7 +39,9 @@
 			.datagrid-filter-row input.datagrid-filter:focus,
 			.datagrid-filter-c:focus-within input.datagrid-filter,
 			.datagrid-filter-c:focus-within .textbox {border-bottom-color: [#~facade:theme_emphasis_color#]}
-			.exf-input textarea:focus-visible {border-bottom-color: [#~facade:theme_emphasis_color#]}
+			.exf-input:not(.exf-inputtext) textarea:focus-visible {border-bottom-color: [#~facade:theme_emphasis_color#]}
+			.exf-input-markdown .markian:focus-within,
+			.exf-inputtext textarea:focus {border-left-color: [#~facade:theme_emphasis_color#]}
 			.window .dialog-button .l-btn:not(.l-btn-plain),
 			.progressbar-value, .progressbar-value .progressbar-text,
 			ul.nav_menu a:hover {background-color: [#~facade:theme_emphasis_color#]}

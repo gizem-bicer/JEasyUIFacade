@@ -63,6 +63,11 @@ ul.nav_menu li.active a.current {color: white; background: #6caef5}
 .dialog-button .exf-toolbar {padding: 0;}
 
 /* Inputs */
+.exf-inputtext, .exf-input-markdown {--exf-input-focus-color: #0e2d5f;}
+.exf-inputtext textarea {border-radius: 0;}
+.exf-input-markdown .markian:focus-within {border-color: var(--markian-line);}
+.exf-input-markdown .markian:focus-within,
+.exf-inputtext textarea:focus {border-left-color: var(--exf-input-focus-color); outline: none;}
 .exf-labeled-item {display: inline-block; height: 100%; vertical-align: middle;}
 .exf-input, .exf-display, .exf-inline-group {box-sizing: border-box; padding:4px; text-align:right;}
 .exf-input > *, .exf-display > * {text-align:initial;}
@@ -106,7 +111,7 @@ fieldset.exface_inputgroup legend {color: #404040; font-weight: bold; padding: 0
 .exf-wizard > .tabs-header > .tabs-wrap > ul.tabs > li:last-of-type:after {content: "";}
 
 /* Text & headings */
-.panel-body h1, .panel-body h2, .panel-body h3, .panel-body h4, .panel-body h5, .panel-body p, .panel-body pre {padding: 0 10px;}
+.panel-body :is(h1, h2, h3, h4, h5, p, pre):where(:not(.markian *, .markian-viewer *)) {padding: 0 10px;}
 .panel-body h1 {margin: 10px 0 5px 0}
 .exf-text {display: block; width: 100%}
 p.exf-text {padding: 0}
@@ -161,7 +166,12 @@ div.messager-body{overflow-y: auto;}
 .exf-control .jsoneditor .jsoneditor-contextmenu-root {position: fixed; z-index: 1;}
 
 /* Markdown */
+.exf-input-markdown .markian-visual,
+.exf-input-markdown .markian-source,
+.exf-input-markdown .markian-view,
+.exf-markdown .markian-viewer {box-sizing: border-box; padding: 12px;}
 .exf-input-markdown .markian {
+    border-radius: 0;
     --markian-toolbar-height: 36px;
     --markian-toolbar-padding: 4px 2px;
     --markian-toolbar-button-height: 26px;
@@ -201,8 +211,10 @@ div.messager-body{overflow-y: auto;}
     font: inherit;
 }
 .exf-input-markdown .markian-menu-items > .markian-button:hover:not(:disabled),
+.exf-input-markdown .markian-menu-items > .markian-button[aria-selected='true'],
 .exf-input-markdown .markian-menu-items > .markian-menu > summary:hover {
     border-color: var(--exf-markian-border);
+    background: var(--markian-soft);
     color: var(--markian-text);
 }
 .exf-input-markdown .markian-search,
@@ -232,7 +244,6 @@ div.messager-body{overflow-y: auto;}
 }
 .exf-input-markdown .markian-panel input[type='checkbox'] {accent-color: var(--exf-markian-accent);}
 .exf-input-markdown .markian-panel-actions > button:not(.markian-button),
-.exf-input-markdown .markian-suggestions button,
 .exf-input-markdown .markian-destination input[type='file']::file-selector-button {
     min-height: 26px;
     padding: 2px 8px;
