@@ -60,7 +60,7 @@ ul.nav_menu li.active a.current {color: white; background: #6caef5}
 .exf-setup-quickselect-menu .menu-item.exf-setup-active.exf-setup-favorite::after {content: "\f005"; float: right; font-family: FontAwesome; margin: 4px 8px 0 18px;}
 .exf-data-header > div:first-of-type > .grid {padding-top: 4px;}
 .exf-data-header.panel-body {background: #f5f5f5;}
-.dialog-button .exf-toolbar {padding: 0;}
+.dialog-button .exf-toolbar {padding: 0; display: flow-root;}
 
 /* Inputs */
 .exf-inputtext, .exf-input-markdown {--exf-input-focus-color: #0e2d5f;}
@@ -137,6 +137,23 @@ div.messager-body{overflow-y: auto;}
 /* Dialog */
 .exf-dialog-header {background-color: #daeef5 !important;}
 .exf-dialog-header .easyui-panel {background-color: transparent !important; border: none;}
+.exf-dialog-with-header > div:has(> .exf-dialog-header + .exf-dialog-body) {display: flex; flex-direction: column; overflow: hidden;}
+.exf-dialog-with-header > div > .exf-dialog-header {flex: 0 0 auto;}
+.exf-dialog-with-header > div > .exf-dialog-body {flex: 1; min-height: 0; height: auto !important;}
+
+@media only screen and (max-width: 600px) {
+    .window .grid > .exf-grid-item {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+    .exf-input-markdown .markian-fullscreen {
+        top: var(--markian-viewport-top, 0px);
+        left: var(--markian-viewport-left, 0px);
+        width: var(--markian-viewport-width, 100vw);
+        height: var(--markian-viewport-height, 100dvh);
+    }
+}
 
 /* TextDiff widget */
 .difftext-container {border: 1px solid #c3d9e0;}

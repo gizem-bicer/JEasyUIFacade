@@ -2,10 +2,6 @@
     "name": "exface/jeasyuifacade",
     "description": "UI facade for the ExFace plattform based on jQuery EasyUI",
     "type": "library",
-    "license": [
-        "GPL-3.0+",
-        "proprietary"
-    ],
     "authors": [
         {
             "name": "Andrej Kabachnik",
@@ -13,7 +9,13 @@
             "role": "Creator"
         }
     ],
+    "license": [
+        "GPL-3.0+",
+        "proprietary"
+    ],
     "support": {
+        "source": "https://github.com/exface/jeasyuifacade",
+        "docs": "https://github.com/exface/jeasyuifacade/blob/1.x-dev/Docs",
         "issues": "https://github.com/exface/jeasyuifacade/issues"
     },
     "require": {

@@ -10,6 +10,8 @@ jEasyUI uses Markian directly for Markdown inputs and displays. There is no back
 | `LIBS.MARKDOWN.CSS` | `npm-asset/github-markdown-css/github-markdown-light.css` | Original display-widget content stylesheet, passed to the viewer. |
 | `LIBS.MARKIAN.VIEWER.JS` / `.CSS` | `axenox/markian/dist/markian-viewer.min.js` / `markian-viewer.css` | Independent rendering-only assets. |
 | `LIBS.MARKIAN.BRIDGE.JS` | `exface/core/Facades/AbstractAjaxFacade/js/markian/MarkianAdapter.js` | JavaScript adapter for host lifecycle and value bindings. |
+| `LIBS.MARKIAN.CODE.JS` / `.CSS` | `axenox/markian/dist/extensions/code.min.js` / `code.css` | Inputs activate Code editing; displays reuse the exported grammar catalogue/loader and syntax colors without activating editing controls. |
+| `LIBS.MARKIAN.CODE.LANGUAGES` | `axenox/markian/dist/extensions/languages/` | Explicit lazy grammar base, resolved through the facade asset resolver for AJAX-evaluated scripts. |
 | `LIBS.MARKIAN.MERMAID.JS` / `.CSS` | `axenox/markian/dist/extensions/mermaid.min.js` / `mermaid.css` | Optional editing extension. |
 | `LIBS.MARKIAN.VIEWER_MERMAID.JS` / `.CSS` | `axenox/markian/dist/extensions/viewer-mermaid.min.js` / `viewer-mermaid.css` | Optional rendering-only adapter. |
 | `LIBS.MERMAID.JS` | Core Mermaid script URL | Passed as the Mermaid `source` string; no duplicated version setting is needed. |
@@ -22,6 +24,8 @@ Install the declared `axenox/markian` Composer dependency alongside a Core conta
 
 The shared jEasyUI theme scopes Markian toolbar sizing to `.exf-input-markdown .markian`: a 36px toolbar with 26px-high buttons matches table action toolbars. It uses Markian's toolbar CSS variables without changing menus or styling other hosts.
 
+On phone viewports up to 600px, jEasyUI Markdown fullscreen uses the entire visual viewport without Markian's desktop 12px inset. Markian still owns viewport resize/scroll tracking, including keyboard-induced height and position changes, and restores the embedded editor on exit. Desktop fullscreen retains the original inset. Simulated keyboard viewport checks do not establish real-device keyboard conformance.
+
 Dropdowns and the image, link and search popups use the same scoped theme: native 12px typography, compact fields and buttons, menu hover states and keyboard focus. The Material theme supplies its accent colors and underlined inputs through shared theme variables. Popup positioning, keyboard navigation and lifecycle remain owned by Markian; editors outside jEasyUI Markdown inputs retain their original styling.
 
 The additive Core trait supplies safe source encoding, value access, replacement/reset and asset declarations. The Core browser bridge keeps a stable facade root around Markian's inner mount. It queues pre-readiness prefill and disabled updates, suppresses host-load change echoes, reads complete active drafts, and treats identical projected values as no-ops. A different host value explicitly discards pending drafts and resets history: only use it for an intentional record load/reset. Failed visual imports leave the old value intact and report an error.
@@ -29,6 +33,31 @@ The additive Core trait supplies safe source encoding, value access, replacement
 Inputs retain jEasyUI live references, conditional disabled/required settings and framework data-type validation. Validation sets `aria-invalid` and its message on the Markian root. Disabled/read-only inputs remain editors with selection, search, copying and navigation. Runtime enabling does not discard drafts. Layout changes remeasure the visible editor through `ResizeObserver`; dialog destruction and DOM removal dispose owned instances and observers.
 
 `allow_images: false` removes only the `image` toolbar item through Markian's recursive toolbar registry API, preserving default and custom menus, and rejects raster paste/drop callbacks. Existing image source is preserved, not regex-stripped. This pilot does **not** prevent manually entered image Markdown in Source or pasted textual Markdown; strict source-level image permission enforcement remains a W9 gate. It is not a server authorization boundary.
+
+## Code Highlighting
+
+`InputCode`, `InputMarkdown`, `Markdown`, and `DisplayMarkdown` accept the same `code_formatter` widget part. The configuration remains independent of the editor library: `EuiInputCode` translates it to Ace modes and formatters; Core's `MarkianTrait` and `MarkianAdapter` translate it into the Markian Code extension for inputs and sanitized fence renderers for displays. Markdown widgets never load Ace.
+
+```json
+{
+	"code_formatter": {
+		"colorize": true,
+		"language": "javascript",
+		"prettify": false
+	}
+}
+```
+
+| Widget setting | InputCode (Ace) | Markdown widgets (Markian) |
+| --- | --- | --- |
+| `colorize` (default `true`) | Select the configured syntax mode; `false` uses plain text. | Enable grammar highlighting; `false` uses an empty language catalogue and retains plain source. |
+| `language` (optional) | Overrides the widget's `language` for highlighting; otherwise uses the widget language. | Limits the catalogue to this language, including its aliases. Omit it to highlight each fence according to its own language. It never replaces a fence's language. |
+| `prettify` (default `true`) | Use the configured formatter when supported. | Accepted for configuration compatibility but not applied; Markdown source is never automatically reformatted. |
+| `dialect` (optional) | Select the SQL formatting dialect. | Accepted for configuration compatibility but not applied; highlighting uses the SQL grammar. |
+
+Markian's bundled catalogue contains JavaScript/`js`, TypeScript/`ts`, JSON, CSS, HTML/`xml`, PHP, SQL, Python/`py`, and YAML/`yml`. Ace supports a larger catalogue; an unsupported Markian language retains plain source. To support mixed-language Markdown, omit `code_formatter.language`. No Markdown configuration is required for the default catalogue. Syntax colors come from Markian's own stylesheet, not the Ace theme. Display highlighting retains plain source on load/render failure and skips highlighting beyond 100,000 characters or 5,000 lines per fence.
+
+Code JS/CSS are loaded for inputs and displays. Individual grammars load only when needed, using the explicitly resolved language base and its asset-version query. Inputs register Code per Markian factory, preserving it when adding Mermaid and after AJAX re-evaluates the editor bundle. Displays use the same loader without registering an editor factory or loading the editor bundle. Their renderers construct text nodes and syntax spans, validate source offsets and token classes, honor cancellation, and leave final HTML sanitization to the viewer. Mermaid renderers are merged with code renderers rather than replacing them. Source, history, and dirty state are unaffected by highlighting.
 
 ## Mentions
 
@@ -81,6 +110,8 @@ Displays retain the original GitHub light stylesheet selected by `LIBS.MARKDOWN.
 Raw HTML previously accepted by the server converter can be omitted from sanitized output. General HTML stencils, front-matter presentation, dynamic `base_url_attribute_alias` updates and `html_template` wrapping have not been accepted for this integration. Consumers relying on these behaviors need compatibility work; there is no legacy display switch. This integration does not change or secure other server-rendered Markdown paths such as DocsFacade.
 
 ## Verification
+
+Phone dialogs use full-width direct grid items, including nested widget groups, without changing compact inline groups or desktop columns. Header/body wrappers share a bounded flex layout so tabs receive only the height remaining below the header. Dialog toolbar wrappers contain floated button groups, allowing the footer measurement to reserve all wrapped rows rather than clipping Save/Close below the viewport. The focused browser regressions cover 320px/390px phones, desktop columns, header/tab bounds, wrapped buttons, and simulated fullscreen keyboard viewport changes. The ticket editor was also checked without saving a record.
 
 The browser fixture exercises the Core bridge against installed packaged assets. Real New/Edit message dialogs additionally verified AJAX startup, visual/source editing, description loading, disabled/enabled transitions, clearing, explicit content CSS and attribute-safe dialog destruction/reopening. Repeated AJAX evaluation of the editor bundle registers Mermaid per factory, not just once per page. These checks do not replace the remaining validation, fullscreen/iframe and mixed-facade acceptance gates or the missing library prerequisites. No records were saved or deleted.
 

@@ -78,6 +78,7 @@ class EuiMarkdown extends EuiHtml
             $options['documentBase'] = $widget->getBaseUrl();
         }
         $optionsJs = json_encode($options, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+        $optionsJs = 'Object.assign(' . $optionsJs . ', {renderers: MarkianAdapter.buildCodeRenderers(document, ' . $this->buildJsMarkdownCodeSettings() . ')})';
         // Override navigation only for new-tab/popup links; fragment links still scroll within this viewer.
         if ($widget instanceof Markdown && $widget->getOpenLinksIn() !== Markdown::OPEN_LINKS_IN_SELF) {
             $openJs = $widget->getOpenLinksIn() === Markdown::OPEN_LINKS_IN_NEW_TAB

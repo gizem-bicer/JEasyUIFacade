@@ -72,7 +72,9 @@ HTML;
         $js = parent::buildJs();
         
         $widget = $this->getWidget();
-        $aceEditorLanguage = mb_strtolower($widget->getLanguage() ?? 'text');
+        $aceEditorLanguage = $widget->getCodeFormatter()->getColorize()
+          ? mb_strtolower($widget->getCodeFormatter()->getLanguage() ?? $widget->getLanguage() ?? 'text')
+          : 'text';
         $setModeJs = '';
         if (in_array($aceEditorLanguage, $this->getAceLanguages())) {
             $setModeJs = "

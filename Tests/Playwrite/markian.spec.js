@@ -7,6 +7,104 @@ test.beforeEach(async ({page}) => {
     await page.evaluate(() => Promise.all([editor.ready, viewer.ready]));
 });
 
+test('shared code formatter settings use Markian highlighting alongside Mermaid', async ({page}) => {
+    await page.addScriptTag({url: '/axenox/markian/dist/extensions/code.min.js'});
+    await page.addScriptTag({url: '/axenox/markian/dist/extensions/mermaid.min.js'});
+    await page.addStyleTag({url: '/axenox/markian/dist/extensions/code.css'});
+    const requests = [];
+    page.on('request', request => requests.push(request.url()));
+    const markdown = '```js\nconst value = "ready";\n```\n\n```json\n{"ready": true}\n```';
+    await page.evaluate(async markdown => {
+        editor.destroy();
+        const config = MarkianAdapter.buildCodeConfig({language: 'JS', colorize: true, languageBase: '/axenox/markian/dist/extensions/languages/?v=fixture'});
+        window.codeConfig = config;
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {
+            markdown, extensions: {code: {enabled: true, config}}
+        }, false, '/exface/core/Facades/AbstractAjaxFacade/js/mermaid/mermaid.min.js');
+        await editor.ready;
+    }, markdown);
+    await expect(page.locator('#editor .tok-keyword').first()).toHaveText('const');
+    expect(await page.evaluate(() => codeConfig.languages.map(language => language.id))).toEqual(['javascript']);
+    expect(await page.evaluate(() => editor.instance.options.extensions.mermaid.enabled)).toBe(true);
+    expect(await page.evaluate(() => editor.get())).toBe(markdown);
+    expect(requests.some(url => url.includes('/languages/javascript.min.js?v=fixture'))).toBe(true);
+    expect(requests.some(url => url.includes('/languages/json.min.js'))).toBe(false);
+    expect(requests.some(url => url.includes('ace-builds'))).toBe(false);
+
+    await page.evaluate(async markdown => {
+        editor.destroy();
+        const config = MarkianAdapter.buildCodeConfig({colorize: false, languageBase: '/axenox/markian/dist/extensions/languages/'});
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {
+            markdown, extensions: {code: {enabled: true, config}}
+        }, false);
+        await editor.ready;
+    }, markdown);
+    await expect(page.locator('#editor .tok-keyword')).toHaveCount(0);
+    expect(await page.evaluate(() => editor.get())).toBe(markdown);
+    expect(await page.evaluate(() => MarkianAdapter.buildCodeConfig({colorize: true}).languages)).toBeUndefined();
+    expect(await page.evaluate(() => MarkianAdapter.buildCodeConfig({colorize: true, language: 'unsupported'}).languages)).toEqual([]);
+
+    await page.evaluate(() => editor.destroy());
+    await page.addScriptTag({url: '/axenox/markian/dist/markian.min.js'});
+    await page.evaluate(async markdown => {
+        const config = MarkianAdapter.buildCodeConfig({language: 'js', colorize: true, languageBase: '/axenox/markian/dist/extensions/languages/'});
+        window.editor = MarkianAdapter.mount(document.getElementById('editor'), {
+            markdown, extensions: {code: {enabled: true, config}}
+        }, false);
+        await editor.ready;
+    }, markdown);
+    await expect(page.locator('#editor .tok-keyword').first()).toHaveText('const');
+    await expect(page.locator('#editor')).not.toHaveAttribute('data-markian-error');
+});
+
+test('Markdown display highlights mixed fences without an editor and retains viewer safety', async ({page}) => {
+    await page.goto('/axenox/markian/Examples/index.html');
+    const requests = [];
+    page.on('request', request => requests.push(request.url()));
+    await page.addScriptTag({url: '/axenox/markian/dist/markian-viewer.min.js'});
+    await page.addScriptTag({url: '/axenox/markian/dist/extensions/code.min.js'});
+    await page.addScriptTag({url: '/axenox/markian/dist/extensions/viewer-mermaid.min.js'});
+    await page.addScriptTag({url: '/exface/core/Facades/AbstractAjaxFacade/js/markian/MarkianAdapter.js'});
+    await page.addStyleTag({url: '/axenox/markian/dist/markian-viewer.css'});
+    await page.addStyleTag({url: '/axenox/markian/dist/extensions/code.css'});
+    const markdown = '```js\nconst html = "<img src=bad-image>";\n```\n\n```json\n{"ready": true}\n```\n\n```unknown\nliteral source\n```\n\n```mermaid\nflowchart LR\n A[Start] --> B[Finish]\n```';
+    await page.evaluate(async markdown => {
+        const host = document.createElement('div');
+        host.id = 'code-display';
+        document.body.replaceChildren(host);
+        const renderers = MarkianAdapter.buildCodeRenderers(document, {
+            colorize: true, languageBase: '/axenox/markian/dist/extensions/languages/?v=display'
+        });
+        window.display = MarkianAdapter.mount(host, {markdown, renderers}, true,
+            '/exface/core/Facades/AbstractAjaxFacade/js/mermaid/mermaid.min.js');
+        await display.ready;
+    }, markdown);
+    const viewer = page.locator('#code-display');
+    await expect(viewer.locator('.tok-keyword').first()).toHaveText('const');
+    await expect(viewer.locator('.tok-attr')).toHaveText('"ready"');
+    await expect(viewer.locator('.language-js')).toHaveText('const html = "<img src=bad-image>";');
+    await expect(viewer.locator('.language-unknown')).toHaveText('literal source');
+    await expect(viewer.locator('img, .markian-toolbar, .cm-editor')).toHaveCount(0);
+    expect(await page.evaluate(() => typeof Markian)).toBe('undefined');
+    expect(await page.evaluate(() => display.get())).toBe(markdown);
+    await expect(viewer.locator('svg')).toHaveCount(1);
+    expect(requests.some(url => url.includes('javascript.min.js?v=display'))).toBe(true);
+    expect(requests.some(url => url.includes('json.min.js?v=display'))).toBe(true);
+    expect(requests.some(url => url.includes('bad-image') || url.includes('/dist/markian.min.js') || url.includes('ace-builds'))).toBe(false);
+    await page.evaluate(() => display.instance.setTheme('dark'));
+    await expect(viewer.locator('.tok-keyword').first()).toHaveCSS('color', 'rgb(221, 160, 221)');
+
+    await page.evaluate(async markdown => {
+        display.destroy();
+        window.display = MarkianAdapter.mount(document.getElementById('code-display'), {
+            markdown, renderers: MarkianAdapter.buildCodeRenderers(document, {colorize: false})
+        }, true);
+        await display.ready;
+    }, markdown);
+    await expect(viewer.locator('[class*=tok-]')).toHaveCount(0);
+    expect(await page.evaluate(() => display.get())).toBe(markdown);
+});
+
 test('mention bridge sends bounded filtered requests and preserves plain insertion and activation', async ({page}) => {
     await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
     const requests = [];
@@ -483,6 +581,99 @@ test('removal disposes owned instances and a reused ID receives fresh source', a
     expect(await page.evaluate(() => editor.get())).toBe('# New record');
     await expect(page.locator('#editor [data-markian]')).toHaveCount(1);
     await expect(page.locator('#viewer [data-markian-viewer]')).toHaveCount(1);
+});
+
+test('phone dialog fills columns and reserves wrapped buttons below its header and tabs', async ({page}) => {
+    await page.addScriptTag({url: '/bower-asset/jquery/dist/jquery.min.js'});
+    await page.addScriptTag({url: '/salt/jeasyui/jquery.easyui.min.js'});
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/material/easyui.css'});
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/jeasyui.exface.css'});
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/jeasyui-material.exface.css'});
+    for (const width of [390, 320, 1100]) {
+        await page.setViewportSize({width, height: 740});
+        await page.evaluate(width => {
+            if ($('#phone-dialog').length) $('#phone-dialog').dialog('destroy');
+            $('body').append(`<div id="phone-dialog" class="exf-dialog-with-header">
+                <div style="height:100%">
+                    <div class="exf-dialog-header" style="height:66px">Header</div>
+                    <div class="exf-dialog-body" style="height:100%">
+                        <div class="easyui-tabs" data-options="fit:true">
+                            <div title="Details">
+                                <div class="grid" style="width:100%">
+                                    <div class="exf-grid-item exf-widget-group" style="width:calc(100% / 3);min-width:310px;height:900px;padding:4px;box-sizing:border-box">
+                                        <div class="easyui-panel" data-options="fit:true,border:false">
+                                            <input class="easyui-textbox" style="width:100%">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+            $('#phone-dialog').dialog({title: 'Editor', width: Math.min(width, 900), height: 740,
+                buttons: $('<div><div class="exf-toolbar"><div class="exf-btn-group"><a class="easyui-linkbutton" style="width:90px">Create child</a><a class="easyui-linkbutton" style="width:90px">External links</a><a class="easyui-linkbutton" style="width:90px">Approve</a></div><div class="exf-btn-group" style="float:right"><a class="easyui-linkbutton" style="width:60px">Save</a><a class="easyui-linkbutton" style="width:60px">Close</a></div></div></div>')
+            });
+            $.parser.parse($('#phone-dialog').dialog('panel'));
+            $('#phone-dialog').dialog('resize').dialog('move', {top: 0, left: 0});
+        }, width);
+        await expect.poll(() => page.evaluate(width => {
+            const domDialog = document.getElementById('phone-dialog');
+            const domBody = domDialog.querySelector('.exf-dialog-body');
+            const domTabs = domBody.querySelector('.easyui-tabs');
+            const domGrid = domBody.querySelector('.grid');
+            const domGroup = domGrid.firstElementChild;
+            const aButtons = [...$(domDialog).dialog('panel')[0].querySelectorAll('.dialog-button .l-btn')];
+            return {
+                tabsFit: domTabs.getBoundingClientRect().bottom <= domBody.getBoundingClientRect().bottom + 1,
+                buttonCount: aButtons.length,
+                buttonsFit: aButtons.every(domButton => domButton.getBoundingClientRect().bottom <= innerHeight),
+                columnsFit: width <= 600 ? Math.abs(domGroup.getBoundingClientRect().width - domGrid.getBoundingClientRect().width) < 1
+                    : domGroup.getBoundingClientRect().width < domGrid.getBoundingClientRect().width / 2
+            };
+        }, width)).toEqual({tabsFit: true, buttonCount: 5, buttonsFit: true, columnsFit: true});
+        await page.locator('#phone-dialog').evaluate(domDialog => $(domDialog).dialog('panel')[0].scrollIntoView());
+        await page.screenshot({path: test.info().outputPath(`phone-dialog-${width}.png`)});
+    }
+});
+
+test('phone fullscreen reaches the visible keyboard viewport and restores desktop margins', async ({page}) => {
+    await page.addStyleTag({url: '/exface/jeasyuifacade/Facades/js/themes/jeasyui.exface.css'});
+    await page.evaluate(() => document.getElementById('editor').classList.add('exf-input-markdown'));
+    await page.setViewportSize({width: 390, height: 844});
+    await page.evaluate(() => {
+        window.keyboardViewport = new EventTarget();
+        Object.assign(keyboardViewport, {width: 390, height: 470, offsetTop: 80, offsetLeft: 0});
+        Object.defineProperty(window, 'visualViewport', {configurable: true, value: keyboardViewport});
+    });
+    const original = await page.evaluate(() => editor.get());
+    await page.evaluate(() => editor.instance.execute('fullscreen'));
+    for (const [height, offsetTop] of [[470, 80], [420, 110], [844, 0]]) {
+        await page.evaluate(({height, offsetTop}) => {
+            Object.assign(keyboardViewport, {height, offsetTop});
+            keyboardViewport.dispatchEvent(new Event('resize'));
+            keyboardViewport.dispatchEvent(new Event('scroll'));
+        }, {height, offsetTop});
+        await expect.poll(() => page.locator('#editor .markian-fullscreen').evaluate(domEditor => {
+            const oRect = domEditor.getBoundingClientRect();
+            const oToolbar = domEditor.querySelector('.markian-toolbar').getBoundingClientRect();
+            return Math.abs(oRect.top - visualViewport.offsetTop) < 1
+                && Math.abs(oRect.bottom - visualViewport.height - visualViewport.offsetTop) < 1
+                && Math.abs(oToolbar.bottom - oRect.bottom) <= 1;
+        })).toBe(true);
+    }
+    await page.locator('#editor .markian-fullscreen').screenshot({path: test.info().outputPath('phone-fullscreen.png')});
+    await page.locator('#editor .ProseMirror').focus();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#editor .markian-fullscreen')).toHaveCount(0);
+    expect(await page.evaluate(() => editor.get())).toBe(original);
+    await page.setViewportSize({width: 1100, height: 844});
+    await page.evaluate(() => {
+        Object.assign(keyboardViewport, {width: 1100, height: 844, offsetTop: 0});
+        return editor.instance.execute('fullscreen');
+    });
+    await expect(page.locator('#editor .markian-fullscreen')).toHaveCSS('left', '12px');
+    await expect(page.locator('#editor .markian-fullscreen')).toHaveCSS('height', '820px');
 });
 
 test('compact layout keeps the editor and viewer within the viewport', async ({page}) => {
